@@ -1,0 +1,30 @@
+# GX-RACK: dashboard + REST + MCP server for the DGX rack fan controller.
+# Browser: http://<host>:8096/          (or through your own reverse proxy)
+# Agents:  http://<host>:8096/mcp       (header X-API-Key)
+
+services:
+  gx-rack:
+    container_name: gx-rack
+    build: .
+    image: gx-rack:local
+    restart: unless-stopped
+    ports:
+      # Loopback by default, for a reverse proxy in front. GX_RACK_BIND=0.0.0.0
+      # in .env to reach it directly from the LAN.
+      - "${GX_RACK_BIND:-127.0.0.1}:${GX_RACK_PORT:-8096}:8000"
+    # CONTROLLER_URL, CONTROLLER_USER, CONTROLLER_PASS, MCP_API_KEY
+    env_file: .env
+    volumes:
+      # Named volume: Docker creates it owned by the image's unprivileged user.
+      - data:/data
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  data:
