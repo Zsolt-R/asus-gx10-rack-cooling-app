@@ -30,7 +30,7 @@ All wiring for the LOLIN S3 Mini in one schematic:
 | [Probes](docs/wiring/mini-probe-wiring.png) | both thermistor probes and their dividers, laid out on the board |
 | [Fans](docs/wiring/mini-fan-wiring.png) | both fans, with pull-ups, pull-downs and 12 V |
 | [Switch, button, LED](docs/wiring/mini-switch-wiring.png) | on/off switch, `0` button and status LED |
-| [Full-size LOLIN S3](docs/wiring/full-size-s3/) | older drawings for the full-size board (add the 1 kΩ fan pull-downs) |
+| [Full-size LOLIN S3](docs/wiring/full-size-s3/) | [probe](docs/wiring/full-size-s3/probe-wiring.png), [fans](docs/wiring/full-size-s3/fan-wiring.png) and [switch](docs/wiring/full-size-s3/switch-wiring.png) for the full-size board (add the 1 kΩ fan pull-downs) |
 
 Pin-by-pin details and resistor values: [`controller/README.md`](controller/README.md)
 and [`docs/components.md`](docs/components.md). The `.excalidraw` files are

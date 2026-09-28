@@ -193,6 +193,9 @@ If a future firmware ever hangs and `OTG` stops responding, move the cable to
   rail, `−` → `GND`. Pressed in (lit) = **fans on**, out = **fans off**,
   whatever the profile. Honoured at power-up. Drawing:
   `../docs/wiring/mini-switch-wiring.png` (source `../docs/wiring/mini-switch-wiring.excalidraw`).
+  On the **full-size LOLIN S3**, `21` is on the right edge, the 3rd hole
+  above the 3-hole `GND` block (between `47` and `14`), and `+` goes to the
+  top-left `3V3` hole: `../docs/wiring/full-size-s3/switch-wiring.png`.
 - **`0` button** on the board (next to the USB socket) picks the profile:
 
 | Press | Effect |

@@ -15,9 +15,11 @@
 | `wiring/mini-fan-wiring.png` | both fans, with pull-ups, pull-downs and 12 V |
 | `wiring/mini-switch-wiring.png` | on/off switch, `0` button and LED |
 
-`wiring/full-size-s3/` holds the older drawings for the full-size LOLIN S3.
-They predate the 1 kΩ pull-downs on the fans' blue wires — add those if you
-ever build that version.
+`wiring/full-size-s3/` holds the drawings for the full-size LOLIN S3:
+`probe-wiring.png`, `fan-wiring.png` and `switch-wiring.png` (on/off switch,
+`0` button and LED — same functions as on the Mini). The fan drawing predates
+the 1 kΩ pull-downs on the fans' blue wires — add those if you build that
+version.
 
 To change a drawing: open the `.excalidraw` file at excalidraw.com (or edit
 its text in any editor), save, then regenerate the pictures:
