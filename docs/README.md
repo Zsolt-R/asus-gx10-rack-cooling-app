@@ -4,6 +4,7 @@
 |------|------|
 | [how-it-works.md](how-it-works.md) | what the controller does, the curve, profiles, controls, safety choices |
 | [components.md](components.md) | every part used, resistor values and colours, pins |
+| [gx-rack-dashboard.png](gx-rack-dashboard.png) | screenshot of the GX-RACK dashboard (app UI) |
 | [wiring/](wiring/) | wiring drawings: `.excalidraw` (editable) + `.png` |
 
 ## Wiring drawings (LOLIN S3 Mini — the board in the rack)

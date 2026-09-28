@@ -19,6 +19,13 @@ GX10s' bottom intakes. Each fan follows its own probe.
 - Optional **GX-RACK** Docker service: dashboard with history, REST, and an
   MCP server so AI agents can read and control the fans
 
+## App UI
+
+The optional GX-RACK dashboard: live temperature, duty and RPM per fan,
+profile buttons, identify / turn-off controls and up to 7 days of history.
+
+![GX-RACK dashboard](docs/gx-rack-dashboard.png)
+
 ## Wiring
 
 All wiring for the LOLIN S3 Mini in one schematic:

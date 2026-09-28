@@ -5,6 +5,8 @@ as a small Docker container on any machine on the same network as the
 controller (home server, NAS, Raspberry Pi, VM…). It is optional: the
 controller has its own simple page at `http://dgx-fans.local/`.
 
+![GX-RACK dashboard](../docs/gx-rack-dashboard.png)
+
 | For | Address (default) |
 |-----|-------------------|
 | Browser | `http://<host>:8096/` |
