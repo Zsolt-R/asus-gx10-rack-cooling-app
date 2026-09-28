@@ -1,4 +1,4 @@
-# ASUS GX10 rack cooling
+# ASUS Ascent GX10 Rack Cooling Controller
 
 Firmware and tools for a small fan controller that helps cool two
 **ASUS Ascent GX10**s in a rack. A LOLIN S3 Mini (ESP32-S3) reads two 10 kΩ
