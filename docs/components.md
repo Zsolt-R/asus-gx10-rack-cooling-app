@@ -3,6 +3,10 @@
 What the controller as built is made of (LOLIN S3 Mini version, the one in
 the rack). Wiring: `wiring/mini-complete-wiring.png`.
 
+These are the numbers for **two GX10s**. For one GX10 (`fan_count = 1` in
+`controller/platformio.ini`), take one fan, one probe and one of each
+per-fan resistor, and leave pins `2`, `12` and `14` empty.
+
 ## Parts
 
 | Qty | Part | Notes |

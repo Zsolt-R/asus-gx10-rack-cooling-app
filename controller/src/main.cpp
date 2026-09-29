@@ -1,7 +1,7 @@
 // DGX rack fan controller
 //
 // Board   : LOLIN S3 (ESP32-S3-WROOM-1)
-// Fans    : 2x Noctua NF-* 120mm 4-pin PWM (12 V)
+// Fans    : 2x Noctua NF-* 120mm 4-pin PWM (12 V)  -- or 1, see FAN_COUNT
 // Sensors : 2x InLine 36219I -- 10k NTC thermistor @ 25 C, 2-pin
 //
 // Fan N follows sensor N (see ZONE_MODE). A sensor that reads at either ADC
@@ -28,6 +28,20 @@
 #else
 #include "driver/pcnt.h"
 #endif
+
+// Firmware version: shown on the web page, in /api/status and on the console.
+// Bump it with every change that gets flashed.
+static const char *const FW_VERSION = "1.1.0";
+
+// ------------------------------------------------------------- fan count --
+// One fan + probe per GX10. Set in platformio.ini (fan_count), not here. With
+// 1, only fan 1 / probe 1 exist: the fan-2 pins are never touched, and the
+// web page, status JSON and console show a single fan.
+#ifndef FAN_COUNT
+#define FAN_COUNT 2
+#endif
+static_assert(FAN_COUNT == 1 || FAN_COUNT == 2, "FAN_COUNT must be 1 or 2");
+static const int NFANS = FAN_COUNT;
 
 // ---------------------------------------------------------------- pin map --
 // Verify against the silkscreen before wiring. Avoided here: GPIO0/3/45/46
@@ -132,7 +146,8 @@ static const uint32_t BTN_GAP_MS      = 350;   // max gap inside a double press
 // 1 = fan N follows sensor N                  -- independent zones (chosen)
 // A faulted probe stops the fan(s) that depend on it (by design: no
 // full-speed failsafe). In mode 1 that is only fan N; in mode 0 both fans fall
-// back to the healthy probe and stop only if both probes are faulted.
+// back to the healthy probe and stop only if both probes are faulted. With a
+// single fan the two modes are the same thing.
 #define ZONE_MODE 1
 
 // A deliberate manual command outranks the sensor-fault stop -- otherwise
@@ -141,7 +156,8 @@ static const uint32_t BTN_GAP_MS      = 350;   // max gap inside a double press
 static const uint32_t MANUAL_TIMEOUT_MS = 10UL * 60UL * 1000UL;
 
 // Identify: one fan at 100 %, the other stopped, so you can see (and hear)
-// which physical fan is which. Short, and it outranks everything else.
+// which physical fan is which (with one fan: that fan at 100 %). Short, and it
+// outranks everything else.
 static const uint32_t IDENTIFY_MS = 15000;
 
 static const uint32_t CONTROL_PERIOD_MS = 100;
@@ -438,11 +454,11 @@ button.off{background:#d9480f;border-color:#d9480f;color:#fff}
 #msg{min-height:1.4em;color:var(--mute);font-size:14px;margin-top:8px}.bad{color:#d9480f}
 </style></head><body>
 <h1>DGX rack fans</h1>
-<div class="grid">
+<div class="grid" id="grid">
 <div class="card"><div class="k">Probe 1 &rarr; fan 1</div><div class="big" id="t0">&ndash;</div><div id="f0" class="k"></div>
 <div class="row"><button id="i0" onclick="ident(1)">Identify fan 1</button></div>
 <div class="row"><button id="o0" onclick="fanOnOff(1)">Turn off fan 1</button></div></div>
-<div class="card"><div class="k">Probe 2 &rarr; fan 2</div><div class="big" id="t1">&ndash;</div><div id="f1" class="k"></div>
+<div class="card" id="c1"><div class="k">Probe 2 &rarr; fan 2</div><div class="big" id="t1">&ndash;</div><div id="f1" class="k"></div>
 <div class="row"><button id="i1" onclick="ident(2)">Identify fan 2</button></div>
 <div class="row"><button id="o1" onclick="fanOnOff(2)">Turn off fan 2</button></div></div>
 </div>
@@ -456,24 +472,26 @@ const $=id=>document.getElementById(id);let idn=0,offs=[false,false];
 function msg(t,bad){$('msg').textContent=t;$('msg').className=bad?'bad':''}
 async function poll(){
  try{const s=await (await fetch('/api/status',{cache:'no-store'})).json();
-  for(const i of [0,1]){
+  const n=s.fans||2,ix=n>1?[0,1]:[0];
+  if(n<2){$('c1').style.display='none';$('grid').style.gridTemplateColumns='1fr'}
+  for(const i of ix){
    $('t'+i).textContent=s.temp[i]===null?'FAULT':s.temp[i].toFixed(1)+' °C';
    $('t'+i).className='big'+(s.temp[i]===null?' bad':'');
    $('f'+i).textContent=(s.duty[i]?s.duty[i]+' %  ·  '+s.rpm[i]+' RPM':'stopped')+(s.overheat[i]?'  ·  over 55 °C':'')+(s.off[i]?'  ·  turned off':'');}
   for(const p of ['normal','quiet','max'])$('b-'+p).className=s.profile===p?'on':'';
   idn=s.identify;
-  for(const i of [0,1]){const on=idn===i+1;$('i'+i).className=on?'on':'';
+  for(const i of ix){const on=idn===i+1;$('i'+i).className=on?'on':'';
    $('i'+i).textContent=on?'Stop · '+s.identifyLeft+' s':'Identify fan '+(i+1);
    $('o'+i).className=s.off[i]?'off':'';
    $('o'+i).textContent=(s.off[i]?'Turn on fan ':'Turn off fan ')+(i+1);}
   offs=s.off;
   let st=s.switchOn?'':'Switch is OFF — fans stay stopped (except above 55 °C). ';
   if(s.manual)st+='Console hold active. ';
-  const o=[1,2].filter(n=>s.off[n-1]);
+  const o=ix.map(i=>i+1).filter(f=>s.off[f-1]);
   if(o.length)st+=(o.length===2?'Both fans':'Fan '+o[0])+' turned off here — stays stopped even if hot. ';
-  if(s.identify)st='Identifying fan '+s.identify+': it runs at 100 %, the other is stopped. Back to normal in '+s.identifyLeft+' s. ';
+  if(s.identify)st='Identifying fan '+s.identify+': it runs at 100 %'+(n>1?', the other is stopped':'')+'. Back to normal in '+s.identifyLeft+' s. ';
   if(!$('msg').dataset.keep)msg(st,!s.switchOn||o.length>0);
-  $('foot').textContent='Wi-Fi '+s.rssi+' dBm · up '+Math.floor(s.uptime/3600)+' h '+Math.floor(s.uptime%3600/60)+' min'
+  $('foot').textContent='Firmware '+(s.version||'?')+' · Wi-Fi '+s.rssi+' dBm · up '+Math.floor(s.uptime/3600)+' h '+Math.floor(s.uptime%3600/60)+' min'
    +(s.locked?' · changes disabled until a web password is set over USB':'');
  }catch(e){msg('Controller not reachable',true)}}
 async function setP(p){
@@ -545,24 +563,28 @@ static unsigned long identifyLeftS() {
     return gone >= IDENTIFY_MS ? 0 : (IDENTIFY_MS - gone + 999) / 1000;
 }
 
+// Per-fan arrays hold NFANS entries; "fans" says how many.
 static void handleStatus() {
-    char t[2][12];
-    for (int i = 0; i < 2; i++) {
-        if (sensorFault[i] || isnan(tempC[i])) strcpy(t[i], "null");
-        else snprintf(t[i], sizeof t[i], "%.1f", tempC[i]);
+    String temp, duty, rpms, hot, off;
+    for (int i = 0; i < NFANS; i++) {
+        const char *sep = i ? "," : "";
+        temp += sep;
+        temp += (sensorFault[i] || isnan(tempC[i])) ? String("null") : String(tempC[i], 1);
+        duty += sep; duty += dutyPct[i];
+        rpms += sep; rpms += rpm[i];
+        hot  += sep; hot  += overheat[i] ? "true" : "false";
+        off  += sep; off  += fanOff[i] ? "true" : "false";
     }
-    char json[400];
+    char json[480];
     snprintf(json, sizeof json,
-             "{\"temp\":[%s,%s],\"duty\":[%u,%u],\"rpm\":[%u,%u],\"profile\":\"%s\","
-             "\"switchOn\":%s,\"manual\":%s,\"overheat\":[%s,%s],\"rssi\":%d,"
-             "\"uptime\":%lu,\"locked\":%s,\"identify\":%d,\"identifyLeft\":%lu,\"off\":[%s,%s]}",
-             t[0], t[1], dutyPct[0], dutyPct[1], rpm[0], rpm[1], PROFILE_NAME[profile],
-             fansOn ? "true" : "false", manualMode ? "true" : "false",
-             overheat[0] ? "true" : "false", overheat[1] ? "true" : "false",
+             "{\"version\":\"%s\",\"fans\":%d,\"temp\":[%s],\"duty\":[%s],\"rpm\":[%s],\"profile\":\"%s\","
+             "\"switchOn\":%s,\"manual\":%s,\"overheat\":[%s],\"rssi\":%d,"
+             "\"uptime\":%lu,\"locked\":%s,\"identify\":%d,\"identifyLeft\":%lu,\"off\":[%s]}",
+             FW_VERSION, NFANS, temp.c_str(), duty.c_str(), rpms.c_str(), PROFILE_NAME[profile],
+             fansOn ? "true" : "false", manualMode ? "true" : "false", hot.c_str(),
              (int)WiFi.RSSI(), (unsigned long)(millis() / 1000),
              webPass.length() ? "false" : "true", identifyFan + 1,
-             identifyLeftS(),
-             fanOff[0] ? "true" : "false", fanOff[1] ? "true" : "false");
+             identifyLeftS(), off.c_str());
     web.sendHeader("Cache-Control", "no-store");
     web.send(200, "application/json", json);
 }
@@ -589,15 +611,16 @@ static void stopIdentify() {
 static void startIdentify(int fan) {
     identifyFan = fan;
     identifySince = millis();
-    Serial.printf("# identify fan %d: 100%%, other fan stopped, for %lu s\n",
-                  fan + 1, IDENTIFY_MS / 1000UL);
+    Serial.printf("# identify fan %d: 100%%%s, for %lu s\n", fan + 1,
+                  NFANS > 1 ? ", other fan stopped" : "", IDENTIFY_MS / 1000UL);
 }
 
 static void handleIdentifyPost() {
     if (!webAuthorised()) return;
     int fan = web.arg("fan").toInt();      // 0 = stop
-    if (fan < 0 || fan > 2) {
-        web.send(400, "application/json", "{\"error\":\"fan must be 0, 1 or 2\"}");
+    if (fan < 0 || fan > NFANS) {
+        web.send(400, "application/json", NFANS > 1 ? "{\"error\":\"fan must be 0, 1 or 2\"}"
+                                                    : "{\"error\":\"fan must be 0 or 1\"}");
         return;
     }
     if (fan) startIdentify(fan - 1);
@@ -613,8 +636,9 @@ static void setFanOff(int i, bool off) {
 static void handleFanPost() {
     if (!webAuthorised()) return;
     int fan = web.arg("fan").toInt();
-    if ((fan != 1 && fan != 2) || !web.hasArg("on")) {
-        web.send(400, "application/json", "{\"error\":\"need fan=1|2 and on=0|1\"}");
+    if (fan < 1 || fan > NFANS || !web.hasArg("on")) {
+        web.send(400, "application/json", NFANS > 1 ? "{\"error\":\"need fan=1|2 and on=0|1\"}"
+                                                    : "{\"error\":\"need fan=1 and on=0|1\"}");
         return;
     }
     setFanOff(fan - 1, web.arg("on").toInt() == 0);
@@ -713,10 +737,12 @@ static void handleCommand(String raw) {
         manualDuty = clampDuty(cmd.substring(4).toInt());
         Serial.printf("# manual %u%% (reverts to auto in %lu min)\n",
                       manualDuty, MANUAL_TIMEOUT_MS / 60000UL);
-    } else if (cmd == "identify 1" || cmd == "identify 2") {
+    } else if (cmd.length() == 10 && cmd.startsWith("identify ") &&
+               cmd.charAt(9) >= '1' && cmd.charAt(9) < '1' + NFANS) {
         startIdentify(cmd.charAt(9) - '1');
-    } else if (cmd == "fan 1 off" || cmd == "fan 2 off" ||
-               cmd == "fan 1 on"  || cmd == "fan 2 on") {
+    } else if ((cmd.length() == 8 || cmd.length() == 9) && cmd.startsWith("fan ") &&
+               cmd.charAt(4) >= '1' && cmd.charAt(4) < '1' + NFANS &&
+               (cmd.endsWith(" on") || cmd.endsWith(" off")) && cmd.charAt(5) == ' ') {
         setFanOff(cmd.charAt(4) - '1', cmd.endsWith("off"));
     } else if (cmd == "identify stop") {
         stopIdentify();
@@ -730,8 +756,12 @@ static void handleCommand(String raw) {
         Serial.printf("# <%4.1fC -> off\n", FAN_OFF_BELOW_C);
         for (size_t i = 0; i < CURVE_LEN; i++)
             Serial.printf("# %5.1fC -> %3u%%\n", CURVE[i].tempC, CURVE[i].duty);
+    } else if (cmd == "version") {
+        Serial.printf("# firmware %s, %d fan%s\n", FW_VERSION, NFANS, NFANS > 1 ? "s" : "");
     } else if (cmd == "help") {
-        Serial.println("# auto | max | set <pct> | identify <1|2|stop> | fan <1|2> <on|off> | profile <normal|quiet|max> | curve | help");
+        Serial.println(NFANS > 1
+            ? "# auto | max | set <pct> | identify <1|2|stop> | fan <1|2> <on|off> | profile <normal|quiet|max> | curve | version | help"
+            : "# auto | max | set <pct> | identify <1|stop> | fan 1 <on|off> | profile <normal|quiet|max> | curve | version | help");
         Serial.println("# wifi | wifi ssid <name> | wifi pass <password> | wifi forget | webpass <password>");
     } else if (cmd.length()) {
         Serial.printf("# unknown command \"%s\", try: help\n", raw.c_str());
@@ -767,7 +797,7 @@ void setup() {
     ledShow();
 
     analogReadResolution(12);
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < NFANS; i++) {
         analogSetPinAttenuation(PIN_NTC[i], ADC_11db);  // ~0..3.1 V usable
         pinMode(PIN_TACH[i], INPUT_PULLUP);             // external 10k also fitted
         tachInit(i);
@@ -785,7 +815,8 @@ void setup() {
     webPass  = prefs.getString("webpass", "");
     if (wifiSsid.length()) wifiStart();
 
-    Serial.println("# dgx-rack fan controller ready -- type 'help'");
+    Serial.printf("# dgx-rack fan controller %s, %d fan%s -- type 'help'\n",
+                  FW_VERSION, NFANS, NFANS > 1 ? "s" : "");
 }
 
 // ------------------------------------------------------------------- loop ---
@@ -801,7 +832,7 @@ void loop() {
     if (now - lastControl >= CONTROL_PERIOD_MS) {
         lastControl = now;
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < NFANS; i++) {
             float t;
             if (readTemp(i, t)) {
                 sensorFault[i] = false;
@@ -818,10 +849,10 @@ void loop() {
         }
         if (identifyFan >= 0 && now - identifySince >= IDENTIFY_MS) stopIdentify();
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < NFANS; i++) {
             uint8_t target;
 
-#if ZONE_MODE == 0
+#if ZONE_MODE == 0 && FAN_COUNT == 2
             bool  blind = sensorFault[0] && sensorFault[1];
             float t = sensorFault[0] ? tempC[1]
                     : sensorFault[1] ? tempC[0]
@@ -904,16 +935,20 @@ void loop() {
         uint32_t elapsed = now - lastReport;
         lastReport = now;
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < NFANS; i++) {
             uint32_t pulses = tachTake(i);
             rpm[i] = (uint16_t)((uint64_t)pulses * 60000ULL / (TACH_PPR * elapsed));
         }
 
         if (serialLine.length()) return;   // someone is typing a command
-        Serial.printf("t0=%s t1=%s duty=%u%%/%u%% rpm=%u/%u%s%s%s%s%s%s%s\n",
-                      sensorFault[0] ? "FAULT" : String(tempC[0], 1).c_str(),
-                      sensorFault[1] ? "FAULT" : String(tempC[1], 1).c_str(),
-                      dutyPct[0], dutyPct[1], rpm[0], rpm[1],
+        String t0 = sensorFault[0] ? String("FAULT") : String(tempC[0], 1);
+        String t1 = sensorFault[1] ? String("FAULT") : String(tempC[1], 1);
+        if (NFANS == 1)
+            Serial.printf("t0=%s duty=%u%% rpm=%u", t0.c_str(), dutyPct[0], rpm[0]);
+        else
+            Serial.printf("t0=%s t1=%s duty=%u%%/%u%% rpm=%u/%u", t0.c_str(), t1.c_str(),
+                          dutyPct[0], dutyPct[1], rpm[0], rpm[1]);
+        Serial.printf("%s%s%s%s%s%s%s\n",
                       identifyFan >= 0 ? " [identify]" : manualMode ? " [manual]" : "",
                       profile != PROFILE_NORMAL ? " [" : "",
                       profile != PROFILE_NORMAL ? PROFILE_NAME[profile] : "",

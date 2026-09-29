@@ -20,7 +20,8 @@ through chat.
 A LOLIN S3 Mini (ESP32-S3) drives two Noctua 120 mm 4-pin PWM fans that blow
 up into the bottom intakes of two ASUS Ascent GX10s. Each fan follows its own
 10 kΩ NTC probe, taped at the back of that fan's shroud, in air the GX10 has
-already heated. Fan 1 ↔ probe 1, fan 2 ↔ probe 2. Once installed, the usual
+already heated. Fan 1 ↔ probe 1, fan 2 ↔ probe 2. A single-GX10 setup uses
+only fan 1 / probe 1 (`fan_count = 1`, see below). Once installed, the usual
 access is **Wi-Fi** (web page, JSON API, OTA updates); USB needs the board
 brought to a computer.
 
@@ -29,7 +30,7 @@ brought to a computer.
 | Path | What |
 |------|------|
 | `controller/src/main.cpp` | the whole firmware, one file, in sections (below) |
-| `controller/platformio.ini` | build envs: `lolin_s3_mini` (USB, default), `lolin_s3_mini_ota` (Wi-Fi), `lolin_s3` (full-size board) |
+| `controller/platformio.ini` | build envs: `lolin_s3_mini` (USB, default), `lolin_s3_mini_ota` (Wi-Fi), `lolin_s3` (full-size board); `[fans] fan_count` = 1 or 2 for all of them |
 | `controller/README.md` | wiring, pins, console commands, calibration |
 | `docs/` | how it works, components, wiring drawings + `render.py` |
 | `agent/fans.sh` | read status / change profile / identify / turn fans off |
@@ -85,6 +86,17 @@ brought to a computer.
   bench-tested; the hold expires after 10 minutes.
 - **Network code never blocks** the fan control loop.
 
+## One fan or two
+
+`fan_count` in `platformio.ini` becomes `FAN_COUNT` / `NFANS` in `main.cpp`
+(1 or 2, default 2). Per-fan arrays stay two long; every loop, handler and
+console command goes up to `NFANS`, and the fan-2 pins are never set up when
+it is 1. `/api/status` has `"fans": N` and its per-fan arrays are N long.
+GX-RACK reads that field (missing = 2, older firmware) and sizes the
+dashboard, history and MCP tools to it. When you add a per-fan feature, loop
+to `NFANS`, not 2, and build both counts. For three or more fans the pin map
+and the fixed-size arrays need extending too.
+
 ## Sections of `main.cpp`
 
 Top to bottom (search for the `// ---- name --` line):
@@ -107,7 +119,7 @@ Top to bottom (search for the `// ---- name --` line):
 ### Per-fan priority in `loop()` (highest first)
 
 1. **Turned off** (`fanOff[i]`) → 0 % at once. Nothing overrides it, not even heat.
-2. **Identify** (`identifyFan`) → that fan 100 %, the other 0 %, no slew, 15 s.
+2. **Identify** (`identifyFan`) → that fan 100 %, the other (if any) 0 %, no slew, 15 s.
 3. **Console hold** (`set`/`max`, `manualMode`) → fixed duty, expires after 10 min.
 4. **Max profile** with the switch on → 100 %.
 5. **Probe fault** → 0 % (no full-speed failsafe).
@@ -128,6 +140,12 @@ kick and the stop hysteresis. Levels 1–2 bypass it.
   new state to `handleStatus()` (grow `json[]` if needed), then a button + a
   `fetch()` in `PAGE[]`. Keep every handler non-blocking.
 - **New console command**: `handleCommand()` and its `help` line.
+
+## Versions
+
+The firmware (`FW_VERSION` in `main.cpp`) and GX-RACK (`VERSION` in
+`gx-rack/app/main.py`) share one version number. When you change either,
+bump both and add an entry to `CHANGELOG.md`.
 
 ## Rules
 

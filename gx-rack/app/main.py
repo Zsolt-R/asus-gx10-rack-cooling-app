@@ -30,6 +30,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 
+VERSION = "1.1.0"   # GX-RACK itself; the controller reports its own firmware version
 CONTROLLER = os.environ.get("CONTROLLER_URL", "http://dgx-fans.local").rstrip("/")
 CTRL_USER = os.environ["CONTROLLER_USER"]
 CTRL_PASS = os.environ["CONTROLLER_PASS"]
@@ -44,10 +45,12 @@ STATIC = Path(__file__).parent / "static"
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Mirrors controller/src/main.cpp -- keep in step when the firmware changes.
+# The number of fans (1 or 2) is not fixed here: it comes from the controller.
 SYSTEM = {
-    "what": "Two Noctua 120 mm PWM fans blow up into the bottom intakes of two ASUS "
-            "Ascent GX10s. Fan N follows probe N, taped at the back of fan N's shroud "
-            "in GX10-heated air. Idle GX10: probe < 30 C; heavy load: 45-55 C.",
+    "what": "One Noctua 120 mm PWM fan per ASUS Ascent GX10 (fan_count says how many) "
+            "blows up into its bottom intake. Fan N follows probe N, taped at the back "
+            "of fan N's shroud in GX10-heated air. Idle GX10: probe < 30 C; heavy "
+            "load: 45-55 C.",
     "curve": [{"probe_c": "<30", "duty_pct": 0}, {"probe_c": 30, "duty_pct": 20},
               {"probe_c": 35, "duty_pct": 30}, {"probe_c": 40, "duty_pct": 45},
               {"probe_c": 45, "duty_pct": 65}, {"probe_c": 50, "duty_pct": 85},
@@ -57,7 +60,7 @@ SYSTEM = {
                  "max": "always 100 % (~3000 RPM)"},
     "priority_per_fan": [
         "1. turned off (set_fan_power on=false) -> 0 %, nothing overrides it, not even heat",
-        "2. identify -> that fan 100 %, the other 0 %, 15 s",
+        "2. identify -> that fan 100 %, the other (if any) 0 %, 15 s",
         "3. USB console set/max hold -> fixed duty, 10 min",
         "4. max profile with the physical switch on -> 100 %",
         "5. probe fault -> 0 % (no full-speed failsafe, by design)",
@@ -65,13 +68,25 @@ SYSTEM = {
     ],
     "notes": [
         "A controller restart clears 'turned off' and returns to Normal.",
-        "Flipping the physical switch turns both fans back on.",
+        "Flipping the physical switch turns all fans back on.",
         "Expected RPM: ~660 at 20 %, ~1400 at 45 %, ~2400 at 80 %, ~3000 at 100 %.",
         "The real limit is inside the GX10 (board sensor 'acpitz', shuts off ~94-96 C).",
     ],
 }
 
 state = {"status": None, "at": 0.0, "error": "not polled yet"}
+
+
+def fan_count(s=None):
+    """Fans on the controller: 1 or 2. Firmware without the field has 2."""
+    s = s or state["status"]
+    return 2 if not s else max(1, min(2, int(s.get("fans", 2))))
+
+
+def per_fan(s, key):
+    """The controller's per-fan list for key, padded to two entries with None."""
+    v = list(s.get(key) or [])
+    return (v + [None, None])[:2]
 
 
 # ------------------------------------------------------------------ history --
@@ -85,10 +100,10 @@ def db():
 
 def store(s):
     with contextlib.closing(db()) as con, con:
+        t, d, r = per_fan(s, "temp"), per_fan(s, "duty"), per_fan(s, "rpm")
         con.execute("INSERT OR REPLACE INTO samples VALUES (?,?,?,?,?,?,?,?,?)",
-                    (int(time.time()), s["temp"][0], s["temp"][1], s["duty"][0],
-                     s["duty"][1], s["rpm"][0], s["rpm"][1], s["profile"],
-                     int(s["switchOn"])))
+                    (int(time.time()), t[0], t[1], d[0], d[1], r[0], r[1],
+                     s["profile"], int(s["switchOn"])))
         con.execute("DELETE FROM samples WHERE ts < ?",
                     (int(time.time()) - RETAIN_DAYS * 86400,))
 
@@ -105,9 +120,10 @@ def history(minutes, max_points=300):
             (bucket, bucket, since)).fetchall()
     r1 = lambda v: None if v is None else round(v, 1)
     r0 = lambda v: None if v is None else round(v)
-    return {"minutes": minutes, "bucket_seconds": bucket,
-            "points": [{"ts": b, "temp": [r1(a), r1(c)], "duty": [r0(d), r0(e)],
-                        "rpm": [r0(f), r0(g)]} for b, a, c, d, e, f, g in rows]}
+    n = fan_count()
+    return {"minutes": minutes, "bucket_seconds": bucket, "fans": n,
+            "points": [{"ts": b, "temp": [r1(a), r1(c)][:n], "duty": [r0(d), r0(e)][:n],
+                        "rpm": [r0(f), r0(g)][:n]} for b, a, c, d, e, f, g in rows]}
 
 
 # --------------------------------------------------------------- controller --
@@ -151,13 +167,15 @@ def summary():
     if s is None:
         return {"controller_reachable": False, "error": state["error"]}
     fans = []
-    for i in (0, 1):
+    off = s.get("off") or [False, False]
+    for i in range(fan_count(s)):
         fans.append({"fan": i + 1, "probe_temp_c": s["temp"][i],
                      "probe_fault": s["temp"][i] is None, "duty_pct": s["duty"][i],
-                     "rpm": s["rpm"][i], "turned_off": s.get("off", [False, False])[i],
+                     "rpm": s["rpm"][i], "turned_off": off[i],
                      "overheat_55c": s["overheat"][i]})
     return {"controller_reachable": state["error"] is None and age < 15,
             "age_seconds": round(age, 1), "error": state["error"],
+            "gx_rack_version": VERSION, "firmware_version": s.get("version"),
             "profile": s["profile"], "switch_on": s["switchOn"], "fans": fans,
             "identify": {"fan": s.get("identify") or None,
                          "seconds_left": s.get("identifyLeft", 0)},
@@ -169,11 +187,21 @@ async def set_profile(p):
     return await command("/api/profile", {"name": p})
 
 
+def no_such_fan(fan):
+    n = fan_count()
+    return (False, f"there is no fan {fan}: this controller has "
+                   f"{'one fan (fan 1)' if n == 1 else 'fans 1 and 2'}")
+
+
 async def identify(fan):              # fan 0 = stop
+    if fan > fan_count():
+        return no_such_fan(fan)
     return await command("/api/identify", {"fan": str(fan)})
 
 
 async def fan_power(fan, on):
+    if fan > fan_count():
+        return no_such_fan(fan)
     return await command("/api/fan", {"fan": str(fan), "on": "1" if on else "0"})
 
 
@@ -181,7 +209,8 @@ async def fan_power(fan, on):
 mcp = FastMCP(
     "GX-RACK",
     instructions=(
-        "Controls the two fans cooling the ASUS GX10s in the DGX rack. Read with "
+        "Controls the fans (one per GX10, one or two) cooling the ASUS GX10s in the "
+        "DGX rack. Read with "
         "get_status / get_history; describe_system explains the curve, profiles and "
         "which control wins. The fans cool real machines under load: before stopping "
         "a fan or changing the profile, say what you are doing, and put back what the "
@@ -212,27 +241,29 @@ async def get_status() -> dict:
 @mcp.tool()
 async def get_history(minutes: int = 60, max_points: int = 120) -> dict:
     """Temperature, duty and RPM history, averaged into at most max_points buckets.
-    minutes: how far back (1 .. 10080 = 7 days). Index 0 = fan/probe 1, 1 = fan/probe 2."""
+    minutes: how far back (1 .. 10080 = 7 days). Index 0 = fan/probe 1, 1 = fan/probe 2
+    (only present when the controller has two fans)."""
     return await asyncio.to_thread(history, minutes, max(10, min(max_points, 1000)))
 
 
 @mcp.tool(name="set_profile")
 async def set_profile_tool(profile: Literal["normal", "quiet", "max"]) -> dict:
-    """Set the profile for both fans: normal (curve, max 80 %), quiet (curve x 67 %)
+    """Set the profile for all fans: normal (curve, max 80 %), quiet (curve x 67 %)
     or max (100 %). Also ends a running identify."""
     return result(await set_profile(profile))
 
 
 @mcp.tool()
 async def identify_fan(fan: Literal[1, 2]) -> dict:
-    """Run this fan at 100 % and stop the other for 15 s, so a person can see which
-    is which. Use stop_identify to end it early."""
+    """Run this fan at 100 % and stop the other (if there are two) for 15 s, so a
+    person can see which is which. Use stop_identify to end it early. Fan 2 only
+    exists when get_status lists two fans."""
     return result(await identify(fan))
 
 
 @mcp.tool()
 async def stop_identify() -> dict:
-    """End a running identify; both fans return to normal control."""
+    """End a running identify; the fans return to normal control."""
     return result(await identify(0))
 
 
@@ -241,15 +272,16 @@ async def set_fan_power(fan: Literal[1, 2], on: bool) -> dict:
     """Turn one fan off (on=false) or back on (on=true). Off is a HARD stop: the fan
     stays stopped even if its GX10 overheats, until turned on again, the physical
     switch is flipped or the controller restarts. Confirm with the user before
-    turning a fan off while its probe is above ~45 C."""
+    turning a fan off while its probe is above ~45 C. Fan 2 only exists when
+    get_status lists two fans."""
     return result(await fan_power(fan, on))
 
 
 @mcp.tool()
 async def describe_system() -> dict:
-    """How the system works: hardware, temperature curve, profiles, the order in which
-    controls override each other, expected RPM."""
-    return SYSTEM
+    """How the system works: hardware, number of fans, temperature curve, profiles,
+    the order in which controls override each other, expected RPM."""
+    return {**SYSTEM, "fan_count": fan_count()}
 
 
 # --------------------------------------------------------------------- HTTP --
@@ -286,7 +318,7 @@ async def api_history(request):
 
 
 async def api_system(request):
-    return JSONResponse(SYSTEM)
+    return JSONResponse({**SYSTEM, "fan_count": fan_count()})
 
 
 async def form(request):
@@ -310,6 +342,8 @@ async def api_identify(request):
     fan = str((await form(request)).get("fan", ""))
     if fan not in ("0", "1", "2"):
         return JSONResponse({"ok": False, "message": "fan must be 0 (stop), 1 or 2"}, 400)
+    if int(fan) > fan_count():
+        return JSONResponse(result(no_such_fan(int(fan))), 400)
     return JSONResponse(result(await identify(int(fan))))
 
 
@@ -320,6 +354,8 @@ async def api_fan(request):
     fan, on = str(f.get("fan", "")), str(f.get("on", "")).lower()
     if fan not in ("1", "2") or on not in ("0", "1", "true", "false"):
         return JSONResponse({"ok": False, "message": "need fan=1|2 and on=0|1"}, 400)
+    if int(fan) > fan_count():
+        return JSONResponse(result(no_such_fan(int(fan))), 400)
     return JSONResponse(result(await fan_power(int(fan), on in ("1", "true"))))
 
 
@@ -329,7 +365,8 @@ async def api_login(request):
 
 
 async def health(request):
-    return JSONResponse({"ok": True, "controller": state["error"] is None})
+    return JSONResponse({"ok": True, "controller": state["error"] is None,
+                         "version": VERSION})
 
 
 class ApiKeyGate:

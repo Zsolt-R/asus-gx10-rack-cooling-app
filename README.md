@@ -3,7 +3,8 @@
 Firmware and tools for a small fan controller that helps cool two
 **ASUS Ascent GX10**s in a rack. A LOLIN S3 Mini (ESP32-S3) reads two 10 kΩ
 NTC probes and drives two Noctua 120 mm 4-pin PWM fans that blow up into the
-GX10s' bottom intakes. Each fan follows its own probe.
+GX10s' bottom intakes. Each fan follows its own probe. Only one GX10? See
+[One GX10 or two](#one-gx10-or-two).
 
 ```
  room air ─► Noctua fan ─► GX10 bottom intake ─► GX10 ─► warm air out the back
@@ -50,6 +51,7 @@ editable; see [`docs/README.md`](docs/README.md) to regenerate the pictures.
 | [`controller/`](controller/) | PlatformIO firmware project; [`README`](controller/README.md) has wiring, pins, console, calibration |
 | [`docs/`](docs/) | [how it works](docs/how-it-works.md), [components](docs/components.md), [wiring drawings](docs/wiring/) |
 | [`gx-rack/`](gx-rack/) | optional dashboard + REST + MCP server (Docker) — [setup](gx-rack/README.md) |
+| [`CHANGELOG.md`](CHANGELOG.md) | what changed in each version |
 | [`agent/`](agent/) | helper scripts and [`AGENT.md`](agent/AGENT.md), the guide for changing this project (for AI agents and people) |
 
 ## Quick start
@@ -70,6 +72,30 @@ editable; see [`docs/README.md`](docs/README.md) to regenerate the pictures.
 4. For the helper scripts, copy `controller/.env.example` to
    `controller/.env` and fill it in. It is ignored by git.
 5. Optionally run the [GX-RACK](gx-rack/README.md) dashboard on any Docker host.
+
+## One GX10 or two
+
+The controller is built for two GX10s: one fan and one probe each. For a
+single GX10, change one line in
+[`controller/platformio.ini`](controller/platformio.ini) before flashing:
+
+```ini
+[fans]
+fan_count = 1
+```
+
+Then wire only **probe 1** (pin `1`) and **fan 1** (pins `11` and `13`) and
+leave pins `2`, `12` and `14` empty. You need half the probes, fans and
+resistors in the [parts list](docs/components.md). The web page, the status
+data and the GX-RACK dashboard then show a single fan; GX-RACK picks up the
+count from the controller by itself.
+
+If a board is already wired for two, the one-fan build simply ignores the
+fan-2 pins. The 1 kΩ pull-down keeps that fan stopped.
+
+Something else, like three GX10s or a different fan? The firmware is one
+file and [`agent/AGENT.md`](agent/AGENT.md) describes it for an AI coding
+assistant. Point yours at that file and describe your setup.
 
 ## 3D-printable 10" rack mount
 

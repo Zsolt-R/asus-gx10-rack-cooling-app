@@ -4,6 +4,11 @@ LOLIN S3 Mini (ESP32-S3) driving two Noctua 120 mm 4-pin PWM fans from two
 InLine 36219I thermistor probes, cooling two ASUS Ascent GX10s. (The
 full-size LOLIN S3 is still supported: build env `lolin_s3`.)
 
+**One GX10 only:** set `fan_count = 1` in `platformio.ini` and wire just
+probe 1 and fan 1 (pins `1`, `11`, `13`). The fan-2 pins are then never
+used, and the web page, `/api/status` and the console show one fan. It
+applies to every build env, USB and OTA alike.
+
 ## Bill of materials
 
 The full parts list — S3 Mini, fans, probes, switch, every resistor with its
@@ -256,11 +261,12 @@ keep the page off anything but your own network.
 
 ```
 auto        return to curve control
-max         both fans to 100 %
+max         all fans to 100 %
 set <pct>   hold a fixed duty (0 = off; 1–19 is raised to 20)
 profile <normal|quiet|max>   same as the button
 wifi | wifi ssid <name> | wifi pass <pw> | wifi forget | webpass <pw>
 curve       print the active curve
+version     firmware version and number of fans
 help
 ```
 
@@ -274,6 +280,8 @@ Status lines look like:
 ```
 t0=31.4 t1=29.8 duty=32%/32% rpm=712/705
 ```
+
+(one fan: `t0=31.4 duty=32% rpm=712`)
 
 with ` [manual]`, ` [quiet]` / ` [max]` and ` [switch off]` appended when active.
 

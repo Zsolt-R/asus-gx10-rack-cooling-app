@@ -111,6 +111,9 @@ uses the REST endpoints above. Restyle it or replace it; the server doesn't
 care. What the controller does is described to agents by `SYSTEM` in
 `app/main.py` — keep it in step when you change the firmware.
 
+One fan or two needs no setting here: GX-RACK reads the count from the
+controller (`fans` in its status) and shows one or two fans to match.
+
 ## Update
 
 From your development machine, over ssh:
