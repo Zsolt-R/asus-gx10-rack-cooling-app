@@ -81,7 +81,7 @@ of clearance so the air flows freely.
 
 **➜ Download it on Cults3D: [ASUS Ascent GX10 10" rack mount with 120 mm fan cooling](https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling)**
 
-<a href="https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling"><img src="docs/rack-mount.jpg" alt="3D-printed 10-inch rack mount with a 120 mm Noctua fan under each GX10 shelf" width="450"></a>
+<a href="https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling"><img src="docs/rack-mount.jpg" alt="Two 3D-printed 10-inch rack mounts without the GX10s, a 120 mm Noctua fan in each" width="600"></a>
 
 **Two layouts**
 
