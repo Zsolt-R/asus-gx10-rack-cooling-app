@@ -5,6 +5,7 @@
 | [how-it-works.md](how-it-works.md) | what the controller does, the curve, profiles, controls, safety choices |
 | [components.md](components.md) | every part used, resistor values and colours, pins |
 | [gx-rack-dashboard.png](gx-rack-dashboard.png) | screenshot of the GX-RACK dashboard (app UI) |
+| [rack-mount.jpg](rack-mount.jpg) | the 3D-printed 10" rack mount ([Cults3D](https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling)) |
 | [wiring/](wiring/) | wiring drawings: `.excalidraw` (editable) + `.png` |
 
 ## Wiring drawings (LOLIN S3 Mini — the board in the rack)

@@ -13,6 +13,7 @@ the rack). Wiring: `wiring/mini-complete-wiring.png`.
 | 1 | **DFRobot DFR0789** Gravity LED switch | self-locking push switch with LED, the on/off switch |
 | 1 | **12 V DC adapter**, ≥ 1 A | feeds only the fans' yellow wires (two fans draw well under 0.5 A) |
 | 1 | USB-C cable + USB power | powers the S3 Mini |
+| 1 | **3D-printed 10" rack mount** | holds the fans and GX10s — [Cults3D](https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling) |
 | 1 | breadboard / rail strip | the Mini has one `3V3` hole: all four resistors to 3V3 share it via a rail |
 
 ## Resistors (per fan / probe, ×2 each)

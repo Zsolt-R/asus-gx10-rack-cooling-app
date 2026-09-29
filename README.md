@@ -55,7 +55,8 @@ editable; see [`docs/README.md`](docs/README.md) to regenerate the pictures.
 ## Quick start
 
 1. Build the hardware: parts in [`docs/components.md`](docs/components.md),
-   wiring in [`docs/wiring/mini-complete-wiring.png`](docs/wiring/mini-complete-wiring.png).
+   wiring in [`docs/wiring/mini-complete-wiring.png`](docs/wiring/mini-complete-wiring.png),
+   and print the [10" rack mount](https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling).
 2. Install [PlatformIO](https://platformio.org/) and flash over USB:
    ```
    cd controller
@@ -69,6 +70,27 @@ editable; see [`docs/README.md`](docs/README.md) to regenerate the pictures.
 4. For the helper scripts, copy `controller/.env.example` to
    `controller/.env` and fill it in. It is ignored by git.
 5. Optionally run the [GX-RACK](gx-rack/README.md) dashboard on any Docker host.
+
+## 3D-printable 10" rack mount
+
+A custom design for a 10" rack: a mount for the ASUS Ascent GX10 with a
+120 mm fan built in. No existing mount put a 120 mm fan in the right place
+for this device, so this one was designed for it. The fan sits under the
+GX10's bottom air intake and pushes cool air straight into it, with plenty
+of clearance so the air flows freely.
+
+**➜ Download it on Cults3D: [ASUS Ascent GX10 10" rack mount with 120 mm fan cooling](https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling)**
+
+<a href="https://cults3d.com/en/3d-model/gadget/asus-ascent-gx10-10-rack-mount-with-120-mm-fan-cooling"><img src="docs/rack-mount.jpg" alt="3D-printed 10-inch rack mount with a 120 mm Noctua fan under each GX10 shelf" width="450"></a>
+
+**Two layouts**
+
+- **Centered**: the GX10 sits in the middle of the rack width.
+- **Offset**: the GX10 is moved to one side, leaving a side pocket that holds
+  the fan-control electronics.
+
+**Two front-plate heights**: pick the one that lines up with the other
+devices in your rack so everything stacks neatly.
 
 ## No warranty — use at your own risk
 
