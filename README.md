@@ -14,11 +14,19 @@ GX10s' bottom intakes. Each fan follows its own probe. Only one GX10? See
                                    controller reads it, sets that fan's speed
 ```
 
-- Temperature curve: off below 30 °C, 20 % at 30 °C → 100 % at 55 °C
-- Profiles Normal / Quiet / Max on the board's button, an on/off switch, RGB status LED
-- Wi-Fi web page and JSON API, firmware updates over Wi-Fi
-- Optional **GX-RACK** Docker service: dashboard with history, REST, and an
-  MCP server so AI agents can read and control the fans
+## Features
+
+- **UI for monitoring and settings**: live temperature, fan speed and RPM,
+  history, profile buttons and per-fan controls in the browser
+  ([App UI](#app-ui))
+- **MCP server**: an AI assistant can read the status and change settings
+  for you ([MCP control](#mcp-control))
+- **Custom cooling profiles**: a temperature curve tuned for GX10 exhaust
+  air (off below 30 °C, 20 % at 30 °C → 100 % at 55 °C), with Normal, Quiet
+  and Max profiles on the board's button, the web page or MCP
+
+Also on the board: an on/off switch, an RGB status LED, a JSON API and
+firmware updates over Wi-Fi.
 
 ## App UI
 
@@ -26,6 +34,16 @@ The optional GX-RACK dashboard: live temperature, duty and RPM per fan,
 profile buttons, identify / turn-off controls and up to 7 days of history.
 
 ![GX-RACK dashboard](docs/gx-rack-dashboard.png)
+
+## MCP control
+
+GX-RACK also runs an MCP server, so an AI assistant can check the rack and
+change settings from a plain request. Here an agent is asked to switch to the
+Quiet profile, does it, and reports back the verified status:
+
+![An AI agent setting the GX-RACK profile to quiet over MCP](docs/gx-rack-mcp.png)
+
+Setup and the list of MCP tools: [`gx-rack/README.md`](gx-rack/README.md).
 
 ## Wiring
 
